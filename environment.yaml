@@ -1,0 +1,14 @@
+name: hdf5_zarr
+channels:
+  - conda-forge
+dependencies:
+  - python=3.6
+  - xarray
+  # h5py from conda-forge won't support parallel mpi until this PR is merged
+  # https://github.com/conda-forge/h5py-feedstock/pull/45
+  - h5py
+  - mpi4py
+  - zarr
+  - dask
+  - distributed
+  - click
