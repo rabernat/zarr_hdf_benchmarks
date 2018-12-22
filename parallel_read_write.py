@@ -2,9 +2,12 @@ from mpi4py import MPI
 #import h5py
 import zarr
 import numpy as np
-from time import time
 import click
 import os
+import shutil
+import time
+
+from diagtimer import DiagnosticTimer
 
 
 @click.command()
@@ -12,6 +15,8 @@ import os
 @click.option('--size', default=1000000, help="Length of each row of array")
 @click.option('--output_dir', default='./', help="Where to write the data")
 def main(nsteps, size, output_dir):
+    timer = DiagnosticTimer()
+
     comm = MPI.COMM_WORLD
     nprocs = comm.Get_size()
     rank = comm.Get_rank()
@@ -38,9 +43,27 @@ def main(nsteps, size, output_dir):
     for n in range(nsteps):
         # random data, signal plus noise
         data = np.cos(20 * np.pi * x / size) + 0.1 * np.random.rand(size)
-        z_array[n, rank] = data
+        total_bytes = nprocs*data.nbytes
+        with timer.time(operation='write', nprocs=nprocs, size_in_mb=total_bytes, format='zarr'):
+            z_array[n, rank] = data
         # barrier needed at the end of each timestep
         comm.Barrier()
+
+    # now read back the data
+    z_array = zarr.open(fname, mode='r')
+    for n in range(nsteps):
+        # random data, signal plus noise
+        with timer.time(operation='read', nprocs=nprocs, size_in_bytes=total_bytes, format='zarr'):
+            _ = z_array[n, rank]
+        comm.Barrier()
+
+    if rank==0:
+        # cleanup temporary files
+        shutil.rmtree(fname)
+        # output results
+        df = timer.dataframe()
+        df.to_csv('parallel_read_write_%s.csv' % time.strftime('%Y-%m-%d_%H%M.%S'),
+                  index=False)
 
 if __name__ == "__main__":
     main()
