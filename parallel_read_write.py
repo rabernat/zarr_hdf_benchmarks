@@ -46,8 +46,8 @@ def main(nsteps, size, output_dir):
         total_bytes = nprocs*data.nbytes
         with timer.time(operation='write', nprocs=nprocs, size_in_mb=total_bytes, format='zarr'):
             z_array[n, rank] = data
-        # barrier needed at the end of each timestep
-        comm.Barrier()
+            # barrier needed at the end of each timestep
+            comm.Barrier()
 
     # now read back the data
     z_array = zarr.open(fname, mode='r')
@@ -55,7 +55,7 @@ def main(nsteps, size, output_dir):
         # random data, signal plus noise
         with timer.time(operation='read', nprocs=nprocs, size_in_bytes=total_bytes, format='zarr'):
             _ = z_array[n, rank]
-        comm.Barrier()
+            comm.Barrier()
 
     if rank==0:
         # cleanup temporary files
