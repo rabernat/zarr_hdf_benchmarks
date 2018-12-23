@@ -44,7 +44,7 @@ def main(nsteps, size, output_dir):
         # random data, signal plus noise
         data = np.cos(20 * np.pi * x / size) + 0.1 * np.random.rand(size)
         total_bytes = nprocs*data.nbytes
-        with timer.time(operation='write', nprocs=nprocs, size_in_mb=total_bytes, format='zarr'):
+        with timer.time(operation='write', nprocs=nprocs, size_in_bytes=total_bytes, format='zarr'):
             z_array[n, rank] = data
             # barrier needed at the end of each timestep
             comm.Barrier()
