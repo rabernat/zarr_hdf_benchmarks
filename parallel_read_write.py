@@ -75,7 +75,6 @@ def main(nsteps, size, output_dir, compression):
         # random data, signal plus noise
         data = (np.cos(20 * np.pi * x / size + 2*np.pi*np.random.rand()) +
                 0.1 * np.random.rand(size))
-        total_bytes = nprocs*data.nbytes
         with timer.time(operation='write', **zarr_log_options):
             z_array[n, rank] = data
             # barrier needed at the end of each timestep
@@ -95,11 +94,12 @@ def main(nsteps, size, output_dir, compression):
     for n in range(nsteps):
         # random data, signal plus noise
         with timer.time(operation='read', **zarr_log_options):
-            _ = z_array[n, rank]
+            zdata = z_array[n, rank]
             comm.Barrier()
         with timer.time(operation='read', **hdf_log_options):
-            _ = hdset[n, rank]
+            hdata = hdset[n, rank]
             comm.Barrier()
+        np.testing.assert_allclose(zdata, hdata)
     hfile.close()
 
     if rank==0:
