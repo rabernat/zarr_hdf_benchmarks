@@ -6,6 +6,7 @@ import click
 import os
 import shutil
 import time
+import uuid
 
 from diagtimer import DiagnosticTimer
 
@@ -38,7 +39,7 @@ def main(nsteps, size, output_dir, compression):
     hdf_compression_kw = {}
     hdf_compression_type, hdf_compression_level = None, None
     if compression=='none':
-        zarr_compression_kw = {}
+        zarr_compression_kw = {'compressor': None}
         zarr_compression_type, zarr_compression_level = None, None
     elif compression=='gzip':
         zarr_compression_type, zarr_compression_level = 'gzip', 4
@@ -52,15 +53,17 @@ def main(nsteps, size, output_dir, compression):
                             compression=hdf_compression_type,
                             compression_level=hdf_compression_level)
 
+    uid = str(uuid.uuid1())[:8]
+    fname_base = f'parallel_test_{uid}'
     ### HDF initialization -- autmatically works in parallel
-    hfname = os.path.join(output_dir, 'parallel_test.hdf5')
+    hfname = os.path.join(output_dir, f'{fname_base}.hdf5')
     hfile = h5py.File(hfname, 'w', driver='mpio', comm=MPI.COMM_WORLD)
     hdset = hfile.create_dataset('test', shape, dtype=dtype, chunks=chunks,
                                  **hdf_compression_kw)
 
     ### Zarr initialization -- more manual steps
     # create file in first rank
-    fname = os.path.join(output_dir, 'parallel_test.zarr')
+    fname = os.path.join(output_dir, f'{fname_base}.zarr')
     if rank==0:
         z_array = zarr.open(fname, mode='w', shape=shape,
                             chunks=chunks, dtype=dtype,
