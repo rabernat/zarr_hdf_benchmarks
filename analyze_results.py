@@ -16,3 +16,4 @@ res = (df.groupby(['operation', 'nprocs', 'size_in_bytes', 'format'])
          .bandwidth
          .aggregate(['count', 'mean', 'std']))
 print(res)
+
