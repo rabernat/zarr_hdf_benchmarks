@@ -8,6 +8,7 @@ f = h5py.File('parallel_test.hdf5', 'w', driver='mpio', comm=MPI.COMM_WORLD)
 
 dset = f.create_dataset('test', (1, 1000), dtype='i',
                         chunks=(1, 1000), compression="gzip")
-dset[rank] = np.full(1000, rank)
+with dset.collective:
+    dset[rank] = np.full(1000, rank)
 
 f.close()

@@ -5,3 +5,4 @@ df = pd.concat(dframes)
 df['bandwidth'] = df.size_in_bytes * df.nprocs / df.runtime
 res = df.groupby(['operation', 'nprocs', 'format']).bandwidth.aggregate(['mean', 'std'])/1e6
 print(res)
+
