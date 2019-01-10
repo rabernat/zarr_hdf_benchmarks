@@ -53,8 +53,14 @@ def main(nsteps, size, output_dir, compression):
                             compression=hdf_compression_type,
                             compression_level=hdf_compression_level)
 
-    uid = str(uuid.uuid1())[:8]
+    
+    if rank == 0:
+        uid = str(uuid.uuid1())[:8]
+    else:
+        uid = None
+    uid = comm.bcast(uid, root=0)
     fname_base = f'parallel_test_{uid}'
+    #fname_base = 'parallel_test_XYZ'
     ### HDF initialization -- autmatically works in parallel
     hfname = os.path.join(output_dir, f'{fname_base}.hdf5')
     hfile = h5py.File(hfname, 'w', driver='mpio', comm=MPI.COMM_WORLD)
@@ -78,11 +84,11 @@ def main(nsteps, size, output_dir, compression):
         # random data, signal plus noise
         data = (np.cos(20 * np.pi * x / size + 2*np.pi*np.random.rand()) +
                 0.1 * np.random.rand(size))
-        with timer.time(operation='write', **zarr_log_options):
+        with timer.time(operation='write', step=n, **zarr_log_options):
             z_array[n, rank] = data
             # barrier needed at the end of each timestep
             comm.Barrier()
-        with timer.time(operation='write', **hdf_log_options):
+        with timer.time(operation='write', step=n, **hdf_log_options):
             hdset[n, rank] = data
             # do we need to close or sync?
             # hfile.flush()
@@ -94,14 +100,24 @@ def main(nsteps, size, output_dir, compression):
     hdset = hfile['test']
     z_array = zarr.open(fname, mode='r')
 
+    # rank logging, should clean this up
+    if rank == 0:
+        print('format,nprocs,operation,runtime,rank')
+
     for n in range(nsteps):
         # random data, signal plus noise
-        with timer.time(operation='read', **zarr_log_options):
+        with timer.time(operation='read', step=n, **zarr_log_options):
+            tic = time.time()
             zdata = z_array[n, rank]
+            readtime = time.time() - tic
             comm.Barrier()
-        with timer.time(operation='read', **hdf_log_options):
+        print(f'zarr,{nprocs},read,{readtime},{rank}')
+        with timer.time(operation='read', step=n, **hdf_log_options):
+            tic = time.time()
             hdata = hdset[n, rank]
+            readtime = time.time() - tic
             comm.Barrier()
+        print(f'hdf,{nprocs},read,{readtime},{rank}')
         np.testing.assert_allclose(zdata, hdata)
     hfile.close()
 
