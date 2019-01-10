@@ -16,7 +16,8 @@ from diagtimer import DiagnosticTimer
 @click.option('--size', default=1000000, help="Length of each row of array")
 @click.option('--output_dir', default='./', help="Where to write the data")
 @click.option('--compression', default='none', type=click.Choice(['none', 'gzip']))
-def main(nsteps, size, output_dir, compression):
+@click.option('--nested', is_flag=True, help="whether to use zarr NestedDirectoryStore")
+def main(nsteps, size, output_dir, compression, nested):
     timer = DiagnosticTimer()
 
     comm = MPI.COMM_WORLD
@@ -48,10 +49,12 @@ def main(nsteps, size, output_dir, compression):
 
     zarr_log_options = dict(nprocs=nprocs, size_in_bytes=chunk_size, format='zarr',
                             compression=zarr_compression_type,
-                            compression_level=zarr_compression_level)
+                            compression_level=zarr_compression_level,
+                            nested=nested)
     hdf_log_options = dict(nprocs=nprocs, size_in_bytes=chunk_size, format='hdf',
                             compression=hdf_compression_type,
-                            compression_level=hdf_compression_level)
+                            compression_level=hdf_compression_level,
+                            nested=None)
 
     
     if rank == 0:
@@ -70,14 +73,18 @@ def main(nsteps, size, output_dir, compression):
     ### Zarr initialization -- more manual steps
     # create file in first rank
     fname = os.path.join(output_dir, f'{fname_base}.zarr')
+    if nested:
+        store = zarr.NestedDirectoryStore(fname)
+    else:
+        store = zarr.DirectoryStore(fname)
     if rank==0:
-        z_array = zarr.open(fname, mode='w', shape=shape,
+        z_array = zarr.open(store, mode='w', shape=shape,
                             chunks=chunks, dtype=dtype,
                             **zarr_compression_kw)
     # block all processes until this is done
     comm.Barrier()
     # reopen file from all ranks to write
-    z_array = zarr.open(fname, mode='r+')
+    z_array = zarr.open(store, mode='r+')
 
     # emulate a scientific simulation
     for n in range(nsteps):
@@ -98,7 +105,7 @@ def main(nsteps, size, output_dir, compression):
     # now read back the data
     hfile = h5py.File(hfname, 'r', driver='mpio', comm=MPI.COMM_WORLD)
     hdset = hfile['test']
-    z_array = zarr.open(fname, mode='r')
+    z_array = zarr.open(store, mode='r')
 
     # rank logging, should clean this up
     if rank == 0:
